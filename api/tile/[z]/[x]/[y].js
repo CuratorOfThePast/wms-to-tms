@@ -38,6 +38,7 @@ export default async function handler(req, res) {
     }
     const buffer = await response.arrayBuffer();
     res.setHeader("Content-Type", "image/png");
+    res.status(200).end(Buffer.from(buffer));
     res.send(Buffer.from(buffer));
   } catch (err) {
     res.status(500).send(`Error fetching WMS tile: ${err}`);
