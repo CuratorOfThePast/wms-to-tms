@@ -1,10 +1,9 @@
 import fetch from "node-fetch";
 
 /**
- * Vercel Serverless Function für Berlin1900-Tiles (b_berlin1900_flaechen)
- * Tile-Koordinaten {z}/{x}/{y} werden in EPSG:4326 BBOX umgerechnet.
+ * WMS → TMS Proxy (Berlin 1900 Flächen)
+ * Wandelt TMS Tile-Koordinaten {z}/{x}/{y} in WMS BBOX (EPSG:4326) um
  */
-
 export default async function handler(req, res) {
   const { z, x, y } = req.query;
 
@@ -13,32 +12,31 @@ export default async function handler(req, res) {
     return;
   }
 
-  const zInt = parseInt(z, 10);
-  const xInt = parseInt(x, 10);
-  const yInt = parseInt(y, 10);
+  const zInt = parseInt(z);
+  const xInt = parseInt(x);
+  const yInt = parseInt(y);
 
-  // Tile -> Lat/Lon (EPSG:4326) Berechnung
+  // WebMercator → EPSG:4326-Umrechnung
   const n = Math.pow(2, zInt);
   const lon1 = (xInt / n) * 360 - 180;
   const lon2 = ((xInt + 1) / n) * 360 - 180;
-
   const lat1 = (Math.atan(Math.sinh(Math.PI * (1 - 2 * yInt / n))) * 180) / Math.PI;
   const lat2 = (Math.atan(Math.sinh(Math.PI * (1 - 2 * (yInt + 1) / n))) * 180) / Math.PI;
-
-  const bbox = `${lon1},${lat2},${lon2},${lat1}`; // EPSG:4326
-
-  // WMS URL
-  const wmsUrl = `https://gdi.berlin.de/services/wms/berlin1900?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=b_berlin1900_flaechen&SRS=EPSG:4326&BBOX=${bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/png`;
+  const bbox = `${lon1},${lat2},${lon2},${lat1}`;
+  
+ //URL
+  const wmsUrl = `https://gdi.berlin.de/services/wms/berlin1900?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=b_berlin1900_flaechen&STYLES=&SRS=EPSG:4326&BBOX=${bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/png`;
 
   try {
-    const response = await fetch(wmsUrl);
+    const response = await fetch(wmsUrl, { headers: { "Accept": "image/png" } });
+
     if (!response.ok) {
       res.status(500).send(`WMS request failed: ${response.status}`);
       return;
     }
+
     const buffer = await response.arrayBuffer();
     res.setHeader("Content-Type", "image/png");
-    res.status(200).end(Buffer.from(buffer));
     res.send(Buffer.from(buffer));
   } catch (err) {
     res.status(500).send(`Error fetching WMS tile: ${err}`);
